@@ -7,16 +7,27 @@ defmodule  WeatherApi.WeatherService do
     def get_weather(location_name) when is_binary(location_name) do
         location_name
         |> get_location()
-        |> lookup_weather()
+        |> get_weather()
     end
-    
+
+    def get_weather(%Location{} = location) do
+        case WeatherCache.get_weather(location) do
+            nil ->
+                weather = lookup_weather(location)
+                WeatherCache.set_weather(weather)
+                weather
+            weather ->
+                IO.puts 'Using Cached Weather'
+                weather
+        end
+    end
     def get_weather(location_name, :use_file) when is_binary(location_name) do
         location_name
         |> get_location()
-        |> lookup_weather(:use_file)
+        |> get_weather(:use_file)
     end
 
-    def lookup_weather_from_cache(%Location{} = location, :use_file) do
+    def get_weather(%Location{} = location, :use_file) do
         case WeatherCache.get_weather(location) do
             nil ->
                 weather = lookup_weather(location, :use_file)
@@ -26,29 +37,19 @@ defmodule  WeatherApi.WeatherService do
         end
     end
 
-    def lookup_weather_from_cache(%Location{} = location) do
-        case WeatherCache.get_weather(location) do
-            nil ->
-                weather = lookup_weather(location)
-                WeatherCache.set_weather(weather)
-                weather
-            weather -> weather
-        end
-    end
-
-    defp get_location(name) do
+    def get_location(name) do
         case LocationCache.get_location(name) do
             nil ->
                 location = lookup_location(name)
                 LocationCache.set_location(location)
                 location
-            location -> location
+            location ->
+                IO.puts 'Using Cached Location'
+                location
         end
     end
 
     def lookup_location(name) do
-        IO.puts "Name"
-        IO.inspect name
         case CageApi.get_coordinates(name) do
             {:ok, coordinates} ->
                 %Location{name: name, latitude: coordinates["lat"], longitude: coordinates["lng"]}

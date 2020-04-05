@@ -8,9 +8,8 @@ defmodule WeatherApiWeb.WeatherController do
     end
 
     def location(conn, %{"location" => location} = params) do
-        weather = WeatherService.get_weather(location, :use_file) 
-        IO.inspect Map.from_struct(weather)
-        json(conn, Map.from_struct(weather))    
+        weather = WeatherService.get_weather(location)
+        json(conn, Map.from_struct(weather))
     end
 
 end

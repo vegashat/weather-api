@@ -1,34 +1,10 @@
-# ---- Build Base Stage ----
-FROM elixir:1.9.4-alpine AS app_builder
-RUN apk add --no-cache \
-	gcc \
-	g++ \
-	git \
-	make \
-	musl-dev
-RUN mix do local.hex --force, local.rebar --force	
-
-# ---- Build Deps Stage ----
-FROM app_builder as deps
-COPY mix.exs mix.lock ./
-ARG MIX_ENV=prod
-ENV MIX_ENV=$MIX_ENV
-RUN mix do deps.get --only=$MIX_ENV, deps.compile
-
-# ---- Build Release Stage ----
-FROM deps as releaser
-RUN echo $MIX_ENV
-COPY config ./config
-COPY lib ./lib
-COPY priv ./priv
-RUN mix release && \
-    cat mix.exs | grep app: | sed -e 's/ app: ://' | tr ',' ' ' | sed 's/ //g' > app_name.txt
-
-# ---- Final Image Stage ----
-FROM alpine:3.9 as app
-RUN apk add --no-cache bash libstdc++ openssl
-ENV CMD=start
+FROM elixir:latest AS weather_elixir
+WORKDIR /app
+ENV MIX_HOME=/opt/mix
+RUN mix local.hex --force
+RUN mix local.rebar --force
+RUN mix archive.install hex phx_new 1.4.11
+COPY . .
+RUN mix deps.get --only prod
+RUN MIX_ENV=prod mix compile
 EXPOSE 4000
-COPY --from=releaser ./_build .
-COPY --from=releaser ./app_name.txt ./app_name.txt
-CMD ["sh","-c","./prod/rel/$(cat ./app_name.txt)/bin/$(cat ./app_name.txt) $CMD"]

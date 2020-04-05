@@ -28,16 +28,12 @@ defmodule WeatherApi.ExternalApi.DarkSky do
     end
 
     def get_weather_json_data(lat, long) do
-      IO.inspect @dark_sky_url
-      IO.inspect @dark_sky_api_key
+      url = "#{@dark_sky_url}/#{@dark_sky_api_key}/#{lat},#{long}?exclude=minutely,hourly"
 
-      url = "#{@dark_sky_url}/#{@dark_sky_api_key}/#{lat},#{long}"
-
-      IO.inspect url
       case Mojito.request(method: :get, url: url) do
-        {:ok, response} ->
-            response.body
+        {:ok, response} -> response.body
         {:error, err} -> "Error requesting weather from Dark Sky: #{err.message}"
+        {_, _} -> "Unexpected Response"
       end
     end
 
@@ -49,7 +45,7 @@ defmodule WeatherApi.ExternalApi.DarkSky do
         case Jason.decode(json, [{:keys, :atoms}]) do
             {:ok, data} ->
                 data
-            {:err, _} ->
+            {:error, _} ->
                 "Error parsing json data"
         end
     end
@@ -62,15 +58,12 @@ defmodule WeatherApi.ExternalApi.DarkSky do
     end
 
     def parse_current(json) do
-        IO.inspect json[:currently]
         with current = json[:currently] do
             base = parse_base_weather(current, :current)
             current = %Current{base |
                 temp: current[:temperature],
                 feels_like: current[:apparentTemperature]
             }
-
-            IO.puts "current parsed correctly"
 
             case Map.has_key?(json, :alerts) do
                 true ->
@@ -92,16 +85,14 @@ defmodule WeatherApi.ExternalApi.DarkSky do
     def parse_forecast(forecast) do
         base_weather = parse_base_weather(forecast, :forecast)
 
-        IO.inspect base_weather
         %Forecast{base_weather |
-            temp_high: forecast[:temperatureHigh],
-            temp_low: forecast[:temperatureLow],
+            temp_high: forecast[:temperatureMax],
+            temp_low: forecast[:temperatureMin],
             moon_phase: forecast[:moonPhase]
         }
     end
 
     defp parse_base_weather(json, :current) do
-
         %Current{
             date: convert_to_cst(json[:time]),
             summary: json[:summary],
@@ -114,7 +105,6 @@ defmodule WeatherApi.ExternalApi.DarkSky do
     end
 
     defp parse_base_weather(json, :forecast) do
-        IO.inspect json[:precipProbability]
         %Forecast{
             date: convert_to_cst(json[:time]),
             summary: json[:summary],
@@ -127,7 +117,6 @@ defmodule WeatherApi.ExternalApi.DarkSky do
     end
 
     def convert_to_cst(unix_time) do
-        IO.inspect unix_time
         {:ok, date} = DateTime.from_unix(unix_time)
         {:ok, date} = DateTime.shift_zone(date, "America/Chicago")
 
@@ -161,8 +150,6 @@ defmodule WeatherApi.ExternalApi.DarkSky do
             Decimal.from_float(lunation_fraction * 100)
             |> Decimal.round(0, :down)
             |> Decimal.to_integer()
-
-        IO.inspect lunation_int
 
         case lunation_int do
             x when x in 0..0 -> "new"
